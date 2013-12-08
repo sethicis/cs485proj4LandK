@@ -2,7 +2,7 @@
  * proxy.c - CS:APP Web proxy
  *
  * TEAM MEMBERS: (put your names here)
- *     Student Name1, student1@cs.uky.edu 
+ *     Student Kyle Blagg, kyle.blagg@uky.edu 
  *     Student Name2, student2@cs.uky.edu 
  * 
  * IMPORTANT: Give a high level description of your code here. You
