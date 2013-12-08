@@ -1,6 +1,14 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
+    
 #include "csapp.h"
+    
+#ifdef __cplusplus
+}
+#endif
 
-void echo(int connfd);
+#include "global.h"
 
 int main(int argc, char** argv){
 

@@ -433,9 +433,8 @@ void Connect(int sockfd, struct sockaddr *serv_addr, int addrlen)
 struct hostent *Gethostbyname(const char *name) 
 {
     struct hostent *p;
-
     if ((p = gethostbyname(name)) == NULL)
-	dns_error("Gethostbyname error");
+        dns_error("Gethostbyname error");
     return p;
 }
 /* $end gethostbyname */
@@ -658,17 +657,17 @@ ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen)
     char c, *bufp = usrbuf;
 
     for (n = 1; n < maxlen; n++) { 
-	if ((rc = rio_read(rp, &c, 1)) == 1) {
-	    *bufp++ = c;
-	    if (c == '\n')
-		break;
-	} else if (rc == 0) {
-	    if (n == 1)
-		return 0; /* EOF, no data read */
-	    else
-		break;    /* EOF, some data was read */
-	} else
-	    return -1;	  /* error */
+        if ((rc = rio_read(rp, &c, 1)) == 1) {
+            *bufp++ = c;
+            if (c == '\n')
+                break;
+        } else if (rc == 0) {
+            if (n == 1)
+                return 0; /* EOF, no data read */
+            else
+                break;    /* EOF, some data was read */
+        } else
+            return -1;	  /* error */
     }
     *bufp = 0;
     return n;
@@ -712,7 +711,7 @@ ssize_t Rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen)
     ssize_t rc;
 
     if ((rc = rio_readlineb(rp, usrbuf, maxlen)) < 0)
-	unix_error("Rio_readlineb error");
+        unix_error("Rio_readlineb error");
     return rc;
 } 
 
