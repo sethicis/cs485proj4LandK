@@ -1,0 +1,20 @@
+G++ = g++ -Wall -g
+GCC = gcc -Wall -g
+
+all: echoServer echoClient
+
+echoServer: echoserveri.o csapp.o echo.o csapp.h global.h
+	$(G++) -o $@ echoserveri.o echo.o csapp.o -lpthread -lcurl
+echoClient: echoclient.o csapp.o csapp.h
+	$(G++) -o $@ echoclient.o csapp.o -lpthread
+echoserveri.o: echoserveri.cc
+	$(G++) -c echoserveri.cc
+echo.o: echo.cc
+	$(G++) -c echo.cc
+csapp.o: csapp.c
+	$(GCC) -c csapp.c
+echoclient.o: echoclient.cc
+	$(G++) -c echoclient.cc
+
+clean:
+	rm -f *.o echoServer echoClient

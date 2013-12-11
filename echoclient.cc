@@ -1,4 +1,14 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
+	
 #include "csapp.h"
+	
+#ifdef __cplusplus
+}
+#endif
+#include <iostream>
+#include <sstream>
 
 int main(int argc, char **argv){
 	int clientfd, port;
@@ -17,7 +27,15 @@ int main(int argc, char **argv){
 	while (Fgets(buf, MAXLINE, stdin) != NULL) {
 		Rio_writen(clientfd, buf, strlen(buf));
 		Rio_readlineb(&rio, buf ,MAXLINE);
-		Fputs(buf, stdout);
+		int inComingSize = atoi(buf);
+		inComingSize += 8;
+		//Rio_readlineb(&rio,buf, inComingSize);
+		//std::cout << buf << std::endl;
+		//Fputs(buf, stdout);
+		std::stringstream ss;
+		ss << buf;
+		std::cout << "Size received: " << ss.str().length() << std::endl;
+		std::cout << buf;
 	}
 	Close(clientfd);
 	exit(0);
