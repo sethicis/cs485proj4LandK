@@ -49,8 +49,10 @@ void serve_dynamic(int fd, char *filename, char *cgiargs);
 void clienterror(int fd, char *cause, char *errnum,
 				 char *shortmsg, char *longmsg);
 void cachePage(char*);
-std::string getFormattedFileName(char* uri);
+std::string getFormattedName(char* host, char* path);
 std::map<char*, std::string> cache_map;
+std::map<char*, hostent*> name_map;
+std::map<char*, hostent*> addr_map;
 
 /* 
  * main - Main routine for the proxy program 
@@ -78,8 +80,7 @@ int main(int argc, char **argv)
 }
 
 
-/* TODO::: change this function into a function that generates
- a file name.
+/* 
  * parse_uri - URI parser
  * 
  * Given a URI from an HTTP proxy GET request (i.e., a URL), extract
@@ -87,7 +88,7 @@ int main(int argc, char **argv)
  * pathname must already be allocated and should be at least MAXLINE
  * bytes. Return -1 if there are any problems.
  */
-/*int parse_uri(char *uri, char *hostname, char *pathname, int *port)
+parse_uri(char *uri, char *hostname, char *pathname, int *port)
 {
     char *hostbegin;
     char *hostend;
@@ -100,7 +101,7 @@ int main(int argc, char **argv)
     }
        
     /* Extract the host name */
-/*
+
     hostbegin = uri + 7;
     hostend = strpbrk(hostbegin, " :/\r\n\0");
     len = hostend - hostbegin;
@@ -108,14 +109,14 @@ int main(int argc, char **argv)
     hostname[len] = '\0';
     
     /* Extract the port number */
-/*
+
     *port = 80; /* default */
-/*
+
     if (*hostend == ':')   
         *port = atoi(hostend + 1);
     
     /* Extract the path */
-/*
+
     pathbegin = strchr(hostbegin, '/');
     if (pathbegin == NULL) {
         pathname[0] = '\0';
@@ -126,7 +127,7 @@ int main(int argc, char **argv)
     }
 
     return 0;
-}*/
+}
 
 /* This function takes the uri, builds the cache file name,
  performs a cURL call on it, then saves the result to a file,
@@ -134,7 +135,6 @@ int main(int argc, char **argv)
 void cachePage(char* uri){
 	CURL* curlhandle;
 	std::stringstream ss;
-	std::string filename = getFormattedFileName(uri);
 	curlhandle = curl_easy_init();
 	if (curlhandle) {
 		curl_easy_setopt(curlhandle,CURLOPT_URL,uri);
@@ -162,7 +162,31 @@ void cachePage(char* uri){
 		curl_easy_cleanup(curlhandle);
 		std::cout << "Completed Successfully\n";
 	}
+    char host[MAXLINE];
+    char path[MAXLINE];
+    int portno;
+    int retstatus;
+
+    retstatus = parse_uri(uri, host, path, portno);
+
+    if (retstatus != 0) {
+      std::cerr << "No bueno" << std::endl;
+    }
+    else {
+    std::string filename = getFormattedName(host, path); 
 	cache_map[uri] = filename+".html"; //Assign value
+    struct hostent* hName = Gethostbyname(host);
+    if (hName == NULL) {
+      std::cerr << "There was an issue in ghbn" << std::endl;
+    }
+    else {
+    name_map[host] = hName;
+    struct in_addr addrList;
+    addrList = hName->h_addr_list;
+    struct hostent* hAddr = Gethostbyaddress(&addrList, sizeof addrList, AF_INET);
+
+    addr_map[&addrList] = hAddr;
+    }
 }
 /*
  * parse_uri - parse URI into filename and CGI args
@@ -399,29 +423,21 @@ void clienterror(int fd, char *cause, char *errnum,
 }
 /* $end clienterror */
 
-std::string getFormattedFileName(char* uri) {
-  std::string temp(uri);
-  char reformat[MAXLINE];
-  int leftOver;
+std::string getFormattedName(char* host, char* path) {
+  std::string tempht(host);
+  std::string tempp(path);
+  
+  std::string file = temph + tempp;
 
-  std::size_t strlen = temp.length();
-  leftOver = strlen - 7; //assuming all uris start with http://
-
-  if (leftOver > MAXLINE) {
-    std::cerr << "Sizes are all wrong!";
-    exit(-1);
-  }
-  else {
-    strlen = temp.copy(reformat, leftOver, 8);
-    reformat[strlen]='\0';
-    for (int i = 0; i < strlen; i++) {
-      if ((reformat[i] < 48) || (reformat[i] > 57 && reformat[i] < 65) ||
-        (reformat[i] > 90 && reformat[i] < 97) || (reformat[i] > 122)) {
-        reformat[i] = '_';
+  
+    for (std::string::const_iterator i = file.begin(); i != file.end(); i++) {
+      if ((file[i] < 48) || (file[i] > 57 && file[i] < 65) ||
+        (file[i] > 90 && file[i] < 97) || (file[i] > 122)) {
+        file[i] = '_';
       }
     }
 
-    std::string fName(reformat);
-    return fName;
+    return file;
   }
-}
+
+
