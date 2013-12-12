@@ -3,7 +3,7 @@
  *
  * TEAM MEMBERS: (put your names here)
  *     Student Kyle Blagg, kyle.blagg@uky.edu 
- *     Student Name2, student2@cs.uky.edu 
+ *     Student Libby Ferland, libby.knouse@uky.edu
  * 
  * IMPORTANT: Give a high level description of your code here. You
  * must also provide a header comment at the beginning of each
@@ -40,7 +40,7 @@ extern "C" {
  */
 int parse_uri(char *uri, char *target_addr, char *path, int  *port);
 int determine_Request(char *uri, std::string &filename, char *cgiargs); //From tiny server
-void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, char *uri, int size);
+void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, char *uri);
 void proxyIt(int fd);
 void read_requesthdrs(rio_t *rp);
 void serve_static(int fd, char *filename, int filesize);
@@ -49,6 +49,7 @@ void serve_dynamic(int fd, char *filename, char *cgiargs);
 void clienterror(int fd, char *cause, char *errnum,
 				 char *shortmsg, char *longmsg);
 void cachePage(char*);
+void logActivity(char* uri, std::string filename, struct sockaddr_in* saddr, bool pageC, bool nameC);
 std::string getFormattedName(char* host, char* path);
 std::map<char*, std::string> cache_map;
 std::map<char*, hostent*> name_map;
@@ -135,6 +136,8 @@ void cachePage(char* uri){
     char path[MAXLINE];
     int portno;
     int retstatus;
+    bool pageCached = false;
+    bool nameCached = false;
 
     retstatus = parse_uri(uri, host, path, &portno);
 
@@ -143,13 +146,23 @@ void cachePage(char* uri){
     }
     else {
 		std::string filename = getFormattedName(host, path);
-		cache_map[uri] = filename+".html"; //Assign value
+        if (cache_map.count(uri) == 0) {
+            cache_map[uri] = filename+".html"; //Assign value
+        }
+        else {
+            pageCached = true;
+        }
 		struct hostent* hName = Gethostbyname(host);
 		if (hName == NULL) {
 			std::cerr << "There was an issue in ghbn" << std::endl;
 		}
 		else {
-			name_map[host] = hName;
+            if (name_map.count(host) == 0) {
+                name_map[host] = hName;
+            }
+            else {
+                nameCached = true;
+            }
 			char** addrList;
 			addrList = hName->h_addr_list;
 			struct hostent* hAddr = Gethostbyaddr(addrList[0], sizeof(addrList[0]), AF_INET);
@@ -165,24 +178,26 @@ void cachePage(char* uri){
 			FILE* oFileBody = Fopen((filename+".html").c_str(),"wb");
 			if (oFileBody == NULL) {
 				curl_easy_cleanup(curlhandle);
-				std::cerr << "Shit went wrong: Couldn't open file\n";
+				std::cerr << "Stuff went wrong: Couldn't open file\n";
 				exit(-1);
 			}
 			FILE* oFileHeader = Fopen((filename+".head").c_str(),"wb");
 			if (oFileHeader == NULL) {
 				curl_easy_cleanup(curlhandle);
-				std::cerr << "Poooooop, something broke: Couldn't open file\n";
+				std::cerr << "Uh oh, something broke: Couldn't open file\n";
 				exit(-1);
 			}
 			curl_easy_setopt(curlhandle,CURLOPT_WRITEHEADER,oFileHeader);
 			curl_easy_setopt(curlhandle,CURLOPT_WRITEDATA,oFileBody);
 			if (curl_easy_perform(curlhandle)) {
-				std::cerr << "FUCK, something went wrong!" << std::endl;
+				std::cerr << "Aag, something went wrong!" << std::endl;
 				exit(-1);
 			}
 			Fclose(oFileBody);
 			Fclose(oFileHeader);
 			curl_easy_cleanup(curlhandle);
+            std::string pageName = filename+".html";
+            logActivity(uri, pageName, *clientaddr, pageCached, nameCached );
 			std::cout << "Completed Successfully\n";
 			
 		}
@@ -262,7 +277,7 @@ void format_log_entry(char *logstring, struct sockaddr_in *sockaddr,
 
 
     /* Return the formatted log entry string */
-    sprintf(logstring, "%s: %d.%d.%d.%d %s %i", time_str, a, b, c, d, uri, size);
+    sprintf(logstring, "%s: %d.%d.%d.%d %s", time_str, a, b, c, d, uri);
 }
 /*
  * ProxyIt Is a modification of the CS485 textbook code for the tiny
@@ -436,6 +451,48 @@ std::string getFormattedName(char* host, char* path) {
     }
 	std::cout << "File name generated is: " << file << std::endl;
     return file;
+}
+
+/*logActivity generates the logfile strings and writes them to the proxy.log file
+ after doing some checks: is the page previously cached, and was anything actually
+ returned from the server. */
+void logActivity(char* uri, std::string filename, struct sockaddr_in* saddr, bool pageC, bool nameC) {
+    
+    FILE * logFile;
+    char[MAXLINE] logLine;
+    struct stat filebuf;
+    int filestate;
+    int filesize;
+    char page[20] = "(PAGE CACHED)\0";
+    char host[25] = "(HOSTNAME CACHED)\0";
+    char nothing[15] = "(NOTFOUND)\0";
+
+    
+    char * fcstr = new char[filename.length() + 1];
+    std::strcpy(fcstr, filename.c_str());
+    
+    filestate = stat(fcstr, &filebuf);
+    filesize = (intmax_t)filebuf.st_size;
+    format_log_entry(logLine, saddr, uri);
+    
+    
+    logFile = Fopen("proxy.log", "a");
+    Fputs(logLine, logFile);
+    if (filesize < 1) {
+        Fputs(nothing, logFile);
+    }
+    else {
+        if(pageC == true) {
+            Fputs(page, logFile);
+        }
+        if (nameC == true) {
+            Fputs(host, logFile);
+        }
+    }
+    
+    Fputs( "\n", logFile);
+    
+    Fclose(logFile);
 }
 
 
