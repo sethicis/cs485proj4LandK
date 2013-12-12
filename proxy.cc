@@ -262,7 +262,7 @@ void format_log_entry(char *logstring, struct sockaddr_in *sockaddr,
 
 
     /* Return the formatted log entry string */
-    sprintf(logstring, "%s: %d.%d.%d.%d %s", time_str, a, b, c, d, uri);
+    sprintf(logstring, "%s: %d.%d.%d.%d %s %i", time_str, a, b, c, d, uri, size);
 }
 /*
  * ProxyIt Is a modification of the CS485 textbook code for the tiny
