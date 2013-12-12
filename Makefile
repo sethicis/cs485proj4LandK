@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -g 
-LDFLAGS = -lpthread -lcurl
+LDFLAGS = -lpthread -lcurl -lc
 G++ = g++
 
 OBJS = proxy.o csapp.o
