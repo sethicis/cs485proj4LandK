@@ -54,23 +54,18 @@ std::map<char*, std::string> cache_map;
 std::map<char*, hostent*> name_map;
 std::map<char*, hostent*> addr_map;
 
-signal(SIGPIPE, SIG_IGN);
+
 
 /* 
  * main - Main routine for the proxy program 
  */
 int main(int argc, char **argv)
 {
+	signal(SIGPIPE, SIG_IGN);
 	int listenfd, connfd, port;
     struct sockaddr_in clientaddr;
 	socklen_t clientlen;
-	
-    /* Check command line args */
-    if (argc != 2) {
-		fprintf(stderr, "usage: %s <port>\n", argv[0]);
-		exit(1);
-    }
-    port = atoi(argv[1]);
+	port = 15213; //Hardcoded port value.
 	
     listenfd = Open_listenfd(port);
     while (1) {
