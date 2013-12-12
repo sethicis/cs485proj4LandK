@@ -1,6 +1,6 @@
-int logActivity(char* uri);
+int logActivity(char* uri,struct sockaddr_in saddr, std::string filename);
 //the filename here should be the curl html file
-int logActivity(char* uri, std::string filename) {
+int logActivity(char* uri,struct sockaddr_in saddr, std::string filename) {
 
   FILE * logFile;
   char[MAXLINE] logLine;

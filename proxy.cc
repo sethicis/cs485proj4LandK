@@ -53,7 +53,7 @@ std::string getFormattedName(char* host, char* path);
 std::map<char*, std::string> cache_map;
 std::map<char*, hostent*> name_map;
 std::map<char*, hostent*> addr_map;
-
+struct sockaddr_in clientaddr;
 
 
 /* 
@@ -63,9 +63,9 @@ int main(int argc, char **argv)
 {
 	signal(SIGPIPE, SIG_IGN);
 	int listenfd, connfd, port;
-    struct sockaddr_in clientaddr;
+    
 	socklen_t clientlen;
-	port = 15213; //Hardcoded port value.
+	port = 15213; //Hardcoded port value
 	
     listenfd = Open_listenfd(port);
     while (1) {
@@ -184,6 +184,7 @@ void cachePage(char* uri){
 			Fclose(oFileHeader);
 			curl_easy_cleanup(curlhandle);
 			std::cout << "Completed Successfully\n";
+			
 		}
 	}
 }

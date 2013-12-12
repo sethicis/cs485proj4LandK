@@ -3,7 +3,7 @@ CFLAGS = -Wall -g
 LDFLAGS = -lpthread -lcurl -lc
 G++ = g++
 
-OBJS = proxy.o csapp.o
+OBJS = proxy.o logger.o csapp.o
 
 all: proxy
 
@@ -15,6 +15,8 @@ csapp.o: csapp.c
 
 proxy.o: proxy.cc
 	$(G++) $(CFLAGS) -c proxy.cc
+logger.o: logger.cc
+	$(G++) $(CFLAGS) -c logger.cc
 
 clean:
 	rm -f *~ *.o proxy core
