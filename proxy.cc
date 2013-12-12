@@ -49,6 +49,7 @@ void serve_dynamic(int fd, char *filename, char *cgiargs);
 void clienterror(int fd, char *cause, char *errnum,
 				 char *shortmsg, char *longmsg);
 void cachePage(char*);
+std::string getFormattedFileName(char* uri);
 std::map<char*, std::string> cache_map;
 
 /* 
@@ -133,10 +134,7 @@ int main(int argc, char **argv)
 void cachePage(char* uri){
 	CURL* curlhandle;
 	std::stringstream ss;
-	//getFileName(uri); commented out for debugging
-	/*The file name is hardcoded for debugging, the finished product will
-	 generate a file name based on the uri */
-	std::string filename = "testOut"; //For debugging
+	std::string filename = getFormattedFileName(uri);
 	curlhandle = curl_easy_init();
 	if (curlhandle) {
 		curl_easy_setopt(curlhandle,CURLOPT_URL,uri);
@@ -400,3 +398,30 @@ void clienterror(int fd, char *cause, char *errnum,
     Rio_writen(fd, body, strlen(body));
 }
 /* $end clienterror */
+
+std::string getFormattedFileName(char* uri) {
+  std::string temp(uri);
+  char reformat[MAXLINE];
+  int leftOver;
+
+  std::size_t strlen = temp.length();
+  leftOver = strlen - 7; //assuming all uris start with http://
+
+  if (leftOver > MAXLINE) {
+    std::cerr << "Sizes are all wrong!";
+    exit(-1);
+  }
+  else {
+    strlen = temp.copy(reformat, leftOver, 8);
+    reformat[strlen]='\0';
+    for (int i = 0; i < strlen; i++) {
+      if ((reformat[i] < 48) || (reformat[i] > 57 && reformat[i] < 65) ||
+        (reformat[i] > 90 && reformat[i] < 97) || (reformat[i] > 122)) {
+        reformat[i] = '_';
+      }
+    }
+
+    std::string fName(reformat);
+    return fName;
+  }
+}
