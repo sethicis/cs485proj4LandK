@@ -38,8 +38,8 @@ extern "C" {
 /*
  * Function prototypes
  */
-//int parse_uri(char *uri, char *target_addr, char *path, int  *port);
-int parse_uri(char *uri, std::string &filename, char *cgiargs); //From tiny server
+int parse_uri(char *uri, char *target_addr, char *path, int  *port);
+int determine_Request(char *uri, std::string &filename, char *cgiargs); //From tiny server
 void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, char *uri, int size);
 void proxyIt(int fd);
 void read_requesthdrs(rio_t *rp);
@@ -54,12 +54,14 @@ std::map<char*, std::string> cache_map;
 std::map<char*, hostent*> name_map;
 std::map<char*, hostent*> addr_map;
 
+signal(SIGPIPE, SIG_IGN);
+
 /* 
  * main - Main routine for the proxy program 
  */
 int main(int argc, char **argv)
 {
-    int listenfd, connfd, port;
+	int listenfd, connfd, port;
     struct sockaddr_in clientaddr;
 	socklen_t clientlen;
 	
@@ -88,7 +90,7 @@ int main(int argc, char **argv)
  * pathname must already be allocated and should be at least MAXLINE
  * bytes. Return -1 if there are any problems.
  */
-parse_uri(char *uri, char *hostname, char *pathname, int *port)
+int parse_uri(char *uri, char *hostname, char *pathname, int *port)
 {
     char *hostbegin;
     char *hostend;
@@ -133,67 +135,69 @@ parse_uri(char *uri, char *hostname, char *pathname, int *port)
  performs a cURL call on it, then saves the result to a file,
  and assigns the filename of the cached webpage to the uri in the hashmap*/
 void cachePage(char* uri){
-	CURL* curlhandle;
-	std::stringstream ss;
-	curlhandle = curl_easy_init();
-	if (curlhandle) {
-		curl_easy_setopt(curlhandle,CURLOPT_URL,uri);
-		curl_easy_setopt(curlhandle,CURLOPT_FOLLOWLOCATION,3L);
-		FILE* oFileBody = Fopen((filename+".html").c_str(),"wb");
-		if (oFileBody == NULL) {
-			curl_easy_cleanup(curlhandle);
-			std::cerr << "Shit went wrong: Couldn't open file\n";
-			exit(-1);
-		}
-		FILE* oFileHeader = Fopen((filename+".head").c_str(),"wb");
-		if (oFileHeader == NULL) {
-			curl_easy_cleanup(curlhandle);
-			std::cerr << "Poooooop, something broke: Couldn't open file\n";
-			exit(-1);
-		}
-		curl_easy_setopt(curlhandle,CURLOPT_WRITEHEADER,oFileHeader);
-		curl_easy_setopt(curlhandle,CURLOPT_WRITEDATA,oFileBody);
-		if (curl_easy_perform(curlhandle)) {
-			std::cerr << "FUCK, something went wrong!" << std::endl;
-			exit(-1);
-		}
-		Fclose(oFileBody);
-		Fclose(oFileHeader);
-		curl_easy_cleanup(curlhandle);
-		std::cout << "Completed Successfully\n";
-	}
+	
     char host[MAXLINE];
     char path[MAXLINE];
     int portno;
     int retstatus;
 
-    retstatus = parse_uri(uri, host, path, portno);
+    retstatus = parse_uri(uri, host, path, &portno);
 
     if (retstatus != 0) {
       std::cerr << "No bueno" << std::endl;
     }
     else {
-    std::string filename = getFormattedName(host, path); 
-	cache_map[uri] = filename+".html"; //Assign value
-    struct hostent* hName = Gethostbyname(host);
-    if (hName == NULL) {
-      std::cerr << "There was an issue in ghbn" << std::endl;
-    }
-    else {
-    name_map[host] = hName;
-    struct in_addr addrList;
-    addrList = hName->h_addr_list;
-    struct hostent* hAddr = Gethostbyaddress(&addrList, sizeof addrList, AF_INET);
+		std::string filename = getFormattedName(host, path);
+		cache_map[uri] = filename+".html"; //Assign value
+		struct hostent* hName = Gethostbyname(host);
+		if (hName == NULL) {
+			std::cerr << "There was an issue in ghbn" << std::endl;
+		}
+		else {
+			name_map[host] = hName;
+			char** addrList;
+			addrList = hName->h_addr_list;
+			struct hostent* hAddr = Gethostbyaddr(addrList[0], sizeof(addrList[0]), AF_INET);
 
-    addr_map[&addrList] = hAddr;
-    }
+			addr_map[addrList[0]] = hAddr;
+		}
+		CURL* curlhandle;
+		std::stringstream ss;
+		curlhandle = curl_easy_init();
+		if (curlhandle) {
+			curl_easy_setopt(curlhandle,CURLOPT_URL,uri);
+			curl_easy_setopt(curlhandle,CURLOPT_FOLLOWLOCATION,3L);
+			FILE* oFileBody = Fopen((filename+".html").c_str(),"wb");
+			if (oFileBody == NULL) {
+				curl_easy_cleanup(curlhandle);
+				std::cerr << "Shit went wrong: Couldn't open file\n";
+				exit(-1);
+			}
+			FILE* oFileHeader = Fopen((filename+".head").c_str(),"wb");
+			if (oFileHeader == NULL) {
+				curl_easy_cleanup(curlhandle);
+				std::cerr << "Poooooop, something broke: Couldn't open file\n";
+				exit(-1);
+			}
+			curl_easy_setopt(curlhandle,CURLOPT_WRITEHEADER,oFileHeader);
+			curl_easy_setopt(curlhandle,CURLOPT_WRITEDATA,oFileBody);
+			if (curl_easy_perform(curlhandle)) {
+				std::cerr << "FUCK, something went wrong!" << std::endl;
+				exit(-1);
+			}
+			Fclose(oFileBody);
+			Fclose(oFileHeader);
+			curl_easy_cleanup(curlhandle);
+			std::cout << "Completed Successfully\n";
+		}
+	}
 }
 /*
  * parse_uri - parse URI into filename and CGI args
  *             return 0 if dynamic content, 1 if static
  */
 /* $begin parse_uri */
-int parse_uri(char *uri, std::string &filename, char *cgiargs)
+int determine_Request(char *uri, std::string &filename, char *cgiargs)
 {
     char *ptr;
 	std::stringstream ss;
@@ -291,7 +295,7 @@ void proxyIt(int fd)
     read_requesthdrs(&rio);
 	
     /* Parse URI from GET request */
-    is_static = parse_uri(uri, filename, cgiargs);
+    is_static = determine_Request(uri, filename, cgiargs);
     if (stat(filename.c_str(), &sbuf) < 0) {
 		clienterror(fd, strdup(filename.c_str()), "404", "Not found",
 					"Basic-Proxy couldn't find this file");
@@ -308,7 +312,7 @@ void proxyIt(int fd)
     else { /* Serve dynamic content */
 		if (!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR & sbuf.st_mode)) {
 			clienterror(fd, strdup(filename.c_str()), "403", "Forbidden",
-						"Tiny couldn't run the CGI program");
+						"Basic-Proxy couldn't run the CGI program");
 			return;
 		}
 		serve_dynamic(fd, strdup(filename.c_str()), cgiargs);
@@ -340,7 +344,6 @@ void serve_static(int fd, char *filename, int filesize)
 {
     int srcfd;
     char *srcp, filetype[MAXLINE], buf[MAXBUF];
-	signal(SIGPIPE, SIG_IGN);
     /* Send response headers to client */
     get_filetype(filename, filetype);
     sprintf(buf, "HTTP/1.0 200 OK\r\n");
@@ -401,8 +404,7 @@ void serve_dynamic(int fd, char *filename, char *cgiargs)
  */
 /* $begin clienterror */
 void clienterror(int fd, char *cause, char *errnum,
-				 char *shortmsg, char *longmsg)
-{
+				 char *shortmsg, char *longmsg){
     char buf[MAXLINE], body[MAXBUF];
 	
     /* Build the HTTP response body */
@@ -427,17 +429,17 @@ std::string getFormattedName(char* host, char* path) {
   std::string tempht(host);
   std::string tempp(path);
   
-  std::string file = temph + tempp;
+  std::string file = tempht + tempp;
 
   
-    for (std::string::const_iterator i = file.begin(); i != file.end(); i++) {
+    for (int i = 0; i < file.length(); i++) {
       if ((file[i] < 48) || (file[i] > 57 && file[i] < 65) ||
         (file[i] > 90 && file[i] < 97) || (file[i] > 122)) {
         file[i] = '_';
       }
     }
-
+	std::cout << "File name generated is: " << file << std::endl;
     return file;
-  }
+}
 
 
