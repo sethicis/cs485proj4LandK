@@ -3,7 +3,7 @@
  *
  * TEAM MEMBERS: (put your names here)
  *     Student Kyle Blagg, kyle.blagg@uky.edu 
- *     Student Libby Ferland, libby.knouse@uky.edu
+ *     Student Name2, student2@cs.uky.edu 
  * 
  * IMPORTANT: Give a high level description of your code here. You
  * must also provide a header comment at the beginning of each
@@ -40,7 +40,15 @@ extern "C" {
  */
 int parse_uri(char *uri, char *target_addr, char *path, int  *port);
 int determine_Request(char *uri, std::string &filename, char *cgiargs); //From tiny server
+<<<<<<< HEAD
+<<<<<<< HEAD
 void format_log_entry(char *logstring, char *uri);
+=======
+void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, char *uri, int size);
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
+=======
+void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, char *uri, int size);
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
 void proxyIt(int fd);
 void read_requesthdrs(rio_t *rp);
 void serve_static(int fd, char *filename, int filesize);
@@ -49,7 +57,13 @@ void serve_dynamic(int fd, char *filename, char *cgiargs);
 void clienterror(int fd, char *cause, char *errnum,
 				 char *shortmsg, char *longmsg);
 void cachePage(char*);
+<<<<<<< HEAD
+<<<<<<< HEAD
 void logActivity(char* uri, std::string filename, bool pageC, bool nameC);
+=======
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
+=======
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
 std::string getFormattedName(char* host, char* path);
 std::map<char*, std::string> cache_map;
 std::map<char*, hostent*> name_map;
@@ -136,8 +150,6 @@ void cachePage(char* uri){
     char path[MAXLINE];
     int portno;
     int retstatus;
-    bool pageCached = false;
-    bool nameCached = false;
 
     retstatus = parse_uri(uri, host, path, &portno);
 
@@ -146,6 +158,8 @@ void cachePage(char* uri){
     }
     else {
 		std::string filename = getFormattedName(host, path);
+<<<<<<< HEAD
+<<<<<<< HEAD
         if (cache_map.count(uri) == 0) {
 			std::cout << "Uri is in cachepage: " << uri << std::endl;
             cache_map[uri] = filename+".html"; //Assign value
@@ -153,17 +167,18 @@ void cachePage(char* uri){
         else {
             pageCached = true;
         }
+=======
+		cache_map[uri] = filename+".html"; //Assign value
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
+=======
+		cache_map[uri] = filename+".html"; //Assign value
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
 		struct hostent* hName = Gethostbyname(host);
 		if (hName == NULL) {
 			std::cerr << "There was an issue in ghbn" << std::endl;
 		}
 		else {
-            if (name_map.count(host) == 0) {
-                name_map[host] = hName;
-            }
-            else {
-                nameCached = true;
-            }
+			name_map[host] = hName;
 			char** addrList;
 			addrList = hName->h_addr_list;
 			struct hostent* hAddr = Gethostbyaddr(addrList[0], sizeof(addrList[0]), AF_INET);
@@ -179,26 +194,32 @@ void cachePage(char* uri){
 			FILE* oFileBody = Fopen((filename+".html").c_str(),"wb");
 			if (oFileBody == NULL) {
 				curl_easy_cleanup(curlhandle);
-				std::cerr << "Stuff went wrong: Couldn't open file\n";
+				std::cerr << "Shit went wrong: Couldn't open file\n";
 				exit(-1);
 			}
 			FILE* oFileHeader = Fopen((filename+".head").c_str(),"wb");
 			if (oFileHeader == NULL) {
 				curl_easy_cleanup(curlhandle);
-				std::cerr << "Uh oh, something broke: Couldn't open file\n";
+				std::cerr << "Poooooop, something broke: Couldn't open file\n";
 				exit(-1);
 			}
 			curl_easy_setopt(curlhandle,CURLOPT_WRITEHEADER,oFileHeader);
 			curl_easy_setopt(curlhandle,CURLOPT_WRITEDATA,oFileBody);
 			if (curl_easy_perform(curlhandle)) {
-				std::cerr << "Aag, something went wrong!" << std::endl;
+				std::cerr << "FUCK, something went wrong!" << std::endl;
 				exit(-1);
 			}
 			Fclose(oFileBody);
 			Fclose(oFileHeader);
 			curl_easy_cleanup(curlhandle);
+<<<<<<< HEAD
+<<<<<<< HEAD
             std::string pageName = filename+".html";
             logActivity(uri, pageName, pageCached, nameCached );
+=======
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
+=======
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
 			std::cout << "Completed Successfully\n";
 			
 		}
@@ -278,7 +299,7 @@ void format_log_entry(char *logstring,
 
 
     /* Return the formatted log entry string */
-    sprintf(logstring, "%s: %d.%d.%d.%d %s", time_str, a, b, c, d, uri);
+    sprintf(logstring, "%s: %d.%d.%d.%d %s %i", time_str, a, b, c, d, uri, size);
 }
 /*
  * ProxyIt Is a modification of the CS485 textbook code for the tiny
@@ -454,6 +475,8 @@ std::string getFormattedName(char* host, char* path) {
     return file;
 }
 
+<<<<<<< HEAD
+<<<<<<< HEAD
 /*logActivity generates the logfile strings and writes them to the proxy.log file
  after doing some checks: is the page previously cached, and was anything actually
  returned from the server. */
@@ -496,4 +519,8 @@ void logActivity(char* uri, std::string filename, bool pageC, bool nameC) {
     Fclose(logFile);
 }
 
+=======
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
+=======
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
 
