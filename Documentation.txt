@@ -1,0 +1,66 @@
+CS 485G Fall 2013
+Project 4: Caching Web Proxy
+
+Kyle Blagg and Libby Ferland
+
+
+-----------------------------------------------------------------------------
+OVERVIEW
+
+This project was prepared as a basic web proxy server that handles caching.  
+The proxy server is designed to cache information not only from pages, but
+from DNS lookups as well in order to speed up the rate of information 
+processing on the web.  The proxy server also keeps a record of all activities
+for debugging and troubleshooting purposes.
+
+
+_____________________________________________________________________________
+FUNCTIONALITY AND IMPLEMENTATION
+
+This project depends heavily on Unix system calls and built in libraries.  
+The proxy handles HTTP requests, URL parsing, and caching.  In addition to 
+maintaining a map of past or frequently accessed page data, it also stores 
+host name and address information for recently or frequently accessed pages.
+To begin, the server opens a socket and listens for a request; once one has
+been received, the server extracts the URL and checks three maps for any
+previously stored information (page, host name, host address).  After checks
+and data retrieval as is appropriate, the server returns a page, or any 
+revelant error messages, to the browser/user.
+
+Most of the functions are fairly straightforward and are as pressented in class or in the text book.  The major difference is the use of cURL to simplify URL 
+function handling and to make separation of web page data easier to cache 
+actual web page contents.  The cURL library was also used to ease the redirects for certain pages whilel using telnet.
+
+
+____________________________________________________________________________
+DEFECTS AND TESTING
+
+It is unfortunate that at this time the most remarkable part of this project 
+is the unresolved bug list.  Several interesting errors were encountered
+during this work that are as yet unsolved.  First, we used a standard (C++) map
+to relate the saved page and DNS data to the respective URIs.  We did not
+expect that this would cause errors when handling often very large and similar
+text items.  The result of this bug is that often large or very similar 
+URLs will parse to the same key and return the same page eg., calls to 
+www.uky.edu and www.cs.uky.edu will return the same page.  This bug could be
+fixed by finding a better container to store the values we expect, or even
+by defining our own template or struct.  The map container was chosen because
+we felt that it was the best way to take full advantage of all the C++ 
+libraries.
+
+Another issue we have discovered that we have not yet circumvented is the 
+occasional return of of SIGPIPE signal, despite the command to ignore.  We
+believe this is because there may be processes running in overlapping time
+frames, and there is some process running that faults out before the call
+to ignore the SIGPIPE signal.  This is an interesting race condition that 
+could be tracked and resolved exactly given more time; we also believe that 
+better use of wait() and fork() calls may help prevent this sort of issue
+from occuring in future programs.
+
+We have also had some issue with logging the events handled by the proxy 
+server, mostly related to the formatting of structs (particularly the socket 
+address struct).  This could be addressed with more time in debugging.  At this
+time for unknown reasons the logging function causes some crashes and 
+erroneous file not found errors.
+
+
