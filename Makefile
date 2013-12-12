@@ -1,19 +1,20 @@
 CC = gcc
 CFLAGS = -Wall -g 
-LDFLAGS = -lpthread
+LDFLAGS = -lpthread -lcurl
+G++ = g++
 
 OBJS = proxy.o csapp.o
 
 all: proxy
 
-proxy: $(OBJS)
-	$(CC) $(OBJS) -o proxy $(LDFLAGS)
+proxy: $(OBJS) csapp.h
+	$(G++) $(OBJS) -o proxy $(LDFLAGS)
 
 csapp.o: csapp.c
 	$(CC) $(CFLAGS) -c csapp.c
 
-proxy.o: proxy.c
-	$(CC) $(CFLAGS) -c proxy.c
+proxy.o: proxy.cc
+	$(G++) $(CFLAGS) -c proxy.cc
 
 clean:
 	rm -f *~ *.o proxy core

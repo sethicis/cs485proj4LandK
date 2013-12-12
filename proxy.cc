@@ -19,11 +19,17 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <map>
+#include <curl/curl.h>
 
 /*
  * Function prototypes
  */
-int parse_uri(char *uri, char *target_addr, char *path, int  *port);
+//int parse_uri(char *uri, char *target_addr, char *path, int  *port);
+int parse_uri(char *uri, std::string &filename, char *cgiargs); //From tiny server
 void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, char *uri, int size);
 void doit(int fd);
 void read_requesthdrs(rio_t *rp);
@@ -32,14 +38,17 @@ void get_filetype(char *filename, char *filetype);
 void serve_dynamic(int fd, char *filename, char *cgiargs);
 void clienterror(int fd, char *cause, char *errnum,
 				 char *shortmsg, char *longmsg);
+void cachePage(char*);
+std::map<char*, std::string> cache_map;
 
 /* 
  * main - Main routine for the proxy program 
  */
 int main(int argc, char **argv)
 {
-    int listenfd, connfd, port, clientlen;
+    int listenfd, connfd, port;
     struct sockaddr_in clientaddr;
+	socklen_t clientlen;
 	
     /* Check command line args */
     if (argc != 2) {
@@ -66,7 +75,7 @@ int main(int argc, char **argv)
  * pathname must already be allocated and should be at least MAXLINE
  * bytes. Return -1 if there are any problems.
  */
-int parse_uri(char *uri, char *hostname, char *pathname, int *port)
+/*int parse_uri(char *uri, char *hostname, char *pathname, int *port)
 {
     char *hostbegin;
     char *hostend;
@@ -79,6 +88,7 @@ int parse_uri(char *uri, char *hostname, char *pathname, int *port)
     }
        
     /* Extract the host name */
+/*
     hostbegin = uri + 7;
     hostend = strpbrk(hostbegin, " :/\r\n\0");
     len = hostend - hostbegin;
@@ -86,11 +96,14 @@ int parse_uri(char *uri, char *hostname, char *pathname, int *port)
     hostname[len] = '\0';
     
     /* Extract the port number */
+/*
     *port = 80; /* default */
+/*
     if (*hostend == ':')   
         *port = atoi(hostend + 1);
     
     /* Extract the path */
+/*
     pathbegin = strchr(hostbegin, '/');
     if (pathbegin == NULL) {
         pathname[0] = '\0';
@@ -101,7 +114,97 @@ int parse_uri(char *uri, char *hostname, char *pathname, int *port)
     }
 
     return 0;
+}*/
+
+/* This function takes the uri, builds the cache file name,
+ performs a cURL call on it, then saves the result to a file,
+ and assigns the filename of the cached webpage to the uri in the hashmap*/
+void cachePage(char* uri){
+	CURL* curlhandle;
+	std::stringstream ss;
+	//getFileName(uri); commented out for debugging
+	std::string filename = "testOut"; //For debugging
+	curlhandle = curl_easy_init();
+	if (curlhandle) {
+		curl_easy_setopt(curlhandle,CURLOPT_URL,uri);
+		curl_easy_setopt(curlhandle,CURLOPT_FOLLOWLOCATION,3L);
+		FILE* oFileBody = Fopen((filename+".html").c_str(),"wb");
+		if (oFileBody == NULL) {
+			curl_easy_cleanup(curlhandle);
+			std::cerr << "Shit went wrong: Couldn't open file\n";
+			exit(-1);
+		}
+		FILE* oFileHeader = Fopen((filename+".head").c_str(),"wb");
+		if (oFileHeader == NULL) {
+			curl_easy_cleanup(curlhandle);
+			std::cerr << "Poooooop, something broke: Couldn't open file\n";
+			exit(-1);
+		}
+		curl_easy_setopt(curlhandle,CURLOPT_WRITEHEADER,oFileHeader);
+		curl_easy_setopt(curlhandle,CURLOPT_WRITEDATA,oFileBody);
+		if (curl_easy_perform(curlhandle)) {
+			std::cerr << "FUCK, something went wrong!" << std::endl;
+			exit(-1);
+		}
+		Fclose(oFileBody);
+		Fclose(oFileHeader);
+		curl_easy_cleanup(curlhandle);
+		std::cout << "Completed Successfully\n";
+	}
+	cache_map[uri] = filename+".html"; //Assign value
 }
+/*
+ * parse_uri - parse URI into filename and CGI args
+ *             return 0 if dynamic content, 1 if static
+ */
+/* $begin parse_uri */
+int parse_uri(char *uri, std::string &filename, char *cgiargs)
+{
+    char *ptr;
+	std::stringstream ss;
+	
+    if (!strstr(uri, "cgi-bin")) {   //line:netp:parseuri:isstatic
+		strcpy(cgiargs, "");                             //line:netp:parseuri:clearcgi
+		//strcpy(filename, "");                           //line:netp:parseuri:beginconvert1
+		//if (cache_map[uri].compare("") == 0){
+		if (cache_map[uri].compare("") == 0){
+			std::cout << "INFO: uri: " << uri << " not found in map\n";
+			// webpage not cached
+			//std::cout << "Parsing\n";
+			cachePage(uri);
+			
+		}
+		std::cout << "For URI: " << uri << std::endl;
+		std::cout << "File is: " << cache_map[uri] << std::endl;
+		filename = cache_map[uri];
+		//filename = cache_map; //Get the filename
+		//std::cout << "file name is: " << filename << std::endl;
+		/*char* tmp;
+		tmp = uri + 7;
+		strcat(filename, tmp);                           //line:netp:parseuri:endconvert1
+		if (uri[strlen(uri)-1] == '/')                   //line:netp:parseuri:slashcheck
+			filename[strlen(filename)-1] = '_';
+			strcat(filename, "home.html");               //line:netp:parseuri:appenddefault
+		*/
+		return 1;
+    }
+    else {                        //line:netp:parseuri:isdynamic
+		std::cerr << "Error: We're handling a dynamic\n";
+		ptr = index(uri, '?');                           //line:netp:parseuri:beginextract
+		if (ptr) {
+			strcpy(cgiargs, ptr+1);
+			*ptr = '\0';
+		}
+		else
+			strcpy(cgiargs, "");                         //line:netp:parseuri:endextract
+		//strcpy(filename, ".");                           //line:netp:parseuri:beginconvert2
+		char* tmp;
+		tmp = uri + 7;
+		filename += uri;                           //line:netp:parseuri:endconvert2
+		return 0;
+    }
+}
+/* $end parse_uri */
 
 /*
  * format_log_entry - Create a formatted log entry in logstring. 
@@ -147,7 +250,8 @@ void doit(int fd)
     int is_static;
     struct stat sbuf;
     char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
-    char filename[MAXLINE], cgiargs[MAXLINE];
+    char cgiargs[MAXLINE];
+	std::string filename;
     rio_t rio;
 	
     /* Read request line and headers */
@@ -163,27 +267,28 @@ void doit(int fd)
 	
     /* Parse URI from GET request */
     is_static = parse_uri(uri, filename, cgiargs);       //line:netp:doit:staticcheck
-    if (Stat(filename, &sbuf) < 0) {                     //line:netp:doit:beginnotfound
-		clienterror(fd, filename, "404", "Not found",
+	//std::cout << "file is: " << filename << std::endl;
+    if (stat(filename.c_str(), &sbuf) < 0) {                     //line:netp:doit:beginnotfound
+		clienterror(fd, strdup(filename.c_str()), "404", "Not found",
 					"Basic-Proxy couldn't find this file");
 		return;
     }                                                    //line:netp:doit:endnotfound
 	
     if (is_static) { /* Serve static content */
 		if (!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode)) { //line:netp:doit:readable
-			clienterror(fd, filename, "403", "Forbidden",
+			clienterror(fd, strdup(filename.c_str()), "403", "Forbidden",
 						"Basic-Proxy couldn't read the file");
 			return;
 		}
-		serve_static(fd, filename, sbuf.st_size);        //line:netp:doit:servestatic
+		serve_static(fd, strdup(filename.c_str()), sbuf.st_size);        //line:netp:doit:servestatic
     }
     else { /* Serve dynamic content */
 		if (!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR & sbuf.st_mode)) { //line:netp:doit:executable
-			clienterror(fd, filename, "403", "Forbidden",
+			clienterror(fd, strdup(filename.c_str()), "403", "Forbidden",
 						"Tiny couldn't run the CGI program");
 			return;
 		}
-		serve_dynamic(fd, filename, cgiargs);            //line:netp:doit:servedynamic
+		serve_dynamic(fd, strdup(filename.c_str()), cgiargs);            //line:netp:doit:servedynamic
     }
 }
 /* $end doit */
@@ -223,7 +328,7 @@ void serve_static(int fd, char *filename, int filesize)
 	
     /* Send response body to client */
     srcfd = Open(filename, O_RDONLY, 0);    //line:netp:servestatic:open
-    srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);//line:netp:servestatic:mmap
+    srcp = (char*)Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);//line:netp:servestatic:mmap
     Close(srcfd);                           //line:netp:servestatic:close
     Rio_writen(fd, srcp, filesize);         //line:netp:servestatic:write
     Munmap(srcp, filesize);                 //line:netp:servestatic:munmap
