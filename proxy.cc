@@ -46,8 +46,6 @@ void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, char *uri, 
 void proxyIt(int fd);
 void read_requesthdrs(rio_t *rp);
 void serve_static(int fd, char *filename, int filesize);
-void get_filetype(char *filename, char *filetype);
-void serve_dynamic(int fd, char *filename, char *cgiargs);
 void clienterror(int fd, char *cause, char *errnum,
 				 char *shortmsg, char *longmsg);
 void cachePage(char*);
@@ -58,7 +56,8 @@ std::string getFormattedName(char* host, char* path);
 std::map<char*, std::string> cache_map;
 std::map<char*, hostent*> name_map;
 std::map<char*, hostent*> addr_map;
-struct sockaddr_in clientaddr;
+
+
 
 
 /* 
@@ -68,9 +67,9 @@ int main(int argc, char **argv)
 {
 	signal(SIGPIPE, SIG_IGN);
 	int listenfd, connfd, port;
-    
+    struct sockaddr_in clientaddr;
 	socklen_t clientlen;
-	port = 15213; //Hardcoded port value
+	port = 15213; //Hardcoded listen port value
 	
     listenfd = Open_listenfd(port);
     while (1) {
@@ -372,45 +371,6 @@ void serve_static(int fd, char *filename, int filesize)
     Rio_writen(fd, srcp, filesize);
     Munmap(srcp, filesize);
 }
-
-/*
- * get_filetype - derive file type from file name
- */
-void get_filetype(char *filename, char *filetype)
-{
-    if (strstr(filename, ".html"))
-		strcpy(filetype, "text/html");
-    else if (strstr(filename, ".gif"))
-		strcpy(filetype, "image/gif");
-    else if (strstr(filename, ".jpg"))
-		strcpy(filetype, "image/jpeg");
-    else
-		strcpy(filetype, "text/plain");
-}
-/* $end serve_static */
-
-/*
- * serve_dynamic - run a CGI program on behalf of the client
- */
-/* $begin serve_dynamic */
-void serve_dynamic(int fd, char *filename, char *cgiargs)
-{
-    char buf[MAXLINE], *emptylist[] = { NULL };
-	
-    /* Return first part of HTTP response */
-    sprintf(buf, "HTTP/1.0 200 OK\r\n");
-    Rio_writen(fd, buf, strlen(buf));
-    sprintf(buf, "Server: Basic Proxy Server\r\n");
-    Rio_writen(fd, buf, strlen(buf));
-	
-    if (Fork() == 0) { /* child */
-		/* Real server would set all CGI vars here */
-		setenv("QUERY_STRING", cgiargs, 1);
-		Dup2(fd, STDOUT_FILENO);         /* Redirect stdout to client */		Execve(filename, emptylist, environ); /* Run CGI program */
-    }
-    Wait(NULL); /* Parent waits for and reaps child */
-}
-/* $end serve_dynamic */
 
 /*
  * clienterror - returns an error message to the client
