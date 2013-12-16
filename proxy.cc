@@ -40,13 +40,28 @@ extern "C" {
  */
 int parse_uri(char *uri, char *target_addr, char *path, int  *port);
 int determine_Request(char *uri, std::string &filename, char *cgiargs); //From tiny server
+<<<<<<< HEAD
+<<<<<<< HEAD
+void format_log_entry(char *logstring, char *uri);
+=======
 void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, char *uri, int size);
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
+=======
+void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, char *uri, int size);
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
 void proxyIt(int fd);
 void read_requesthdrs(rio_t *rp);
 void serve_static(int fd, char *filename, int filesize);
 void clienterror(int fd, char *cause, char *errnum,
 				 char *shortmsg, char *longmsg);
 void cachePage(char*);
+<<<<<<< HEAD
+<<<<<<< HEAD
+void logActivity(char* uri, std::string filename, bool pageC, bool nameC);
+=======
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
+=======
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
 std::string getFormattedName(char* host, char* path);
 std::map<char*, std::string> cache_map;
 std::map<char*, hostent*> name_map;
@@ -142,7 +157,21 @@ void cachePage(char* uri){
     }
     else {
 		std::string filename = getFormattedName(host, path);
+<<<<<<< HEAD
+<<<<<<< HEAD
+        if (cache_map.count(uri) == 0) {
+			std::cout << "Uri is in cachepage: " << uri << std::endl;
+            cache_map[uri] = filename+".html"; //Assign value
+        }
+        else {
+            pageCached = true;
+        }
+=======
 		cache_map[uri] = filename+".html"; //Assign value
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
+=======
+		cache_map[uri] = filename+".html"; //Assign value
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
 		struct hostent* hName = Gethostbyname(host);
 		if (hName == NULL) {
 			std::cerr << "There was an issue in ghbn" << std::endl;
@@ -182,6 +211,14 @@ void cachePage(char* uri){
 			Fclose(oFileBody);
 			Fclose(oFileHeader);
 			curl_easy_cleanup(curlhandle);
+<<<<<<< HEAD
+<<<<<<< HEAD
+            std::string pageName = filename+".html";
+            logActivity(uri, pageName, pageCached, nameCached );
+=======
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
+=======
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
 			std::cout << "Completed Successfully\n";
 			
 		}
@@ -235,7 +272,7 @@ int determine_Request(char *uri, std::string &filename, char *cgiargs)
  * (sockaddr), the URI from the request (uri), and the size in bytes
  * of the response from the server (size).
  */
-void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, 
+void format_log_entry(char *logstring,
 		      char *uri, int size)
 {
     time_t now;
@@ -253,7 +290,7 @@ void format_log_entry(char *logstring, struct sockaddr_in *sockaddr,
      * because inet_ntoa is a Class 3 thread unsafe function that
      * returns a pointer to a static variable (Ch 13, CS:APP).
      */
-    host = ntohl(sockaddr->sin_addr.s_addr);
+    host = ntohl(clientaddr.sin_addr.s_addr);
     a = host >> 24;
     b = (host >> 16) & 0xff;
     c = (host >> 8) & 0xff;
@@ -398,4 +435,52 @@ std::string getFormattedName(char* host, char* path) {
     return file;
 }
 
+<<<<<<< HEAD
+<<<<<<< HEAD
+/*logActivity generates the logfile strings and writes them to the proxy.log file
+ after doing some checks: is the page previously cached, and was anything actually
+ returned from the server. */
+void logActivity(char* uri, std::string filename, bool pageC, bool nameC) {
+    
+    FILE * logFile;
+    char logLine[MAXLINE];
+    struct stat filebuf;
+    int filestate;
+    int filesize;
+    char page[20] = "(PAGE CACHED)\0";
+    char host[25] = "(HOSTNAME CACHED)\0";
+    char nothing[15] = "(NOTFOUND)\0";
+
+    
+    char * fcstr = new char[filename.length() + 1];
+    std::strcpy(fcstr, filename.c_str());
+    
+    filestate = stat(fcstr, &filebuf);
+    filesize = (intmax_t)filebuf.st_size;
+    format_log_entry(logLine, uri,filesize);
+    
+    
+    logFile = Fopen("proxy.log", "a");
+    Fputs(logLine, logFile);
+    if (filesize < 1) {
+        Fputs(nothing, logFile);
+    }
+    else {
+        if(pageC == true) {
+            Fputs(page, logFile);
+        }
+        if (nameC == true) {
+            Fputs(host, logFile);
+        }
+    }
+    
+    Fputs( "\n", logFile);
+    
+    Fclose(logFile);
+}
+
+=======
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
+=======
+>>>>>>> parent of 1f89c62... added logger function to proxy and modified makefile to remove reference to logger.cc
 
