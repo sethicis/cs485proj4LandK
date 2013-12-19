@@ -52,7 +52,7 @@ void proxyIt(int fd);
 void send_request(char* method,char* version, char* host,char* path,int* port,std::string* retHmsg,std::string* retBmsg);
 void clienterror(int fd, char *cause, char *errnum,
 				 char *shortmsg, char *longmsg);
-void logActivity(char* uri, std::string filename, bool pageC, bool nameC);
+void logActivity(char* uri, int filesize,struct sockaddr_in*, bool pageE, bool pageC, bool nameC);
 int searchCache(char* host,char* path,std::string* retHmsg,std::string* retBmsg);
 void getCache(std::string headerFile,std::string bodyFile,std::string* retHmsg,std::string* retBmsg);
 void cacheNewHost(char* host,char* path,std::string* retHmsg,std::string* retBmsg,struct sockaddr_in* serv);
@@ -66,6 +66,13 @@ void loadPathContent(struct hostCache& hc,char* path,std::string* retBmsg);
 
 /* Structure definitions */
 /* paths of a host name */
+struct logInfo{
+	bool hcache;
+	bool pcache;
+	bool ecache;
+	std::string url;
+	int bSize;
+};
 struct hostPaths {
 	std::string pathname;
 	std::string F_headName;
@@ -82,6 +89,7 @@ struct hostCache {
 /* Global variables */
 int filenameCounter; //Used to determine what to name the next file
 std::vector<struct hostCache> proxyCache; //Global collection of hostCaches
+struct logInfo* logEvent;
 /* End of global variables */
 
 /*
@@ -102,9 +110,18 @@ int main(int argc, char **argv)
 	
     listenfd = Open_listenfd(port);
     while (1) {
+		if (logEvent != NULL) {
+			free(logEvent);
+		}
+		//initalize the log structure
+		logEvent = (logInfo*)Malloc(sizeof(logEvent));
+		logEvent->hcache = false;
+		logEvent->pcache = false;
+		logEvent->ecache = false;
 		clientlen = sizeof(clientaddr);
 		connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
 		proxyIt(connfd);
+		logActivity(strdup(logEvent->url.c_str()),logEvent->bSize,&clientaddr,logEvent->ecache,logEvent->pcache,logEvent->hcache);
 		Close(connfd);
     }
 }
@@ -145,7 +162,7 @@ void proxyIt(int fd)
 	if (retBody != NULL) {
 		write_Result(retMsg,retBody,fd);
 	}
-	
+	logEvent->url = uri;
 }
 /* $end proxyIt */
 
@@ -169,95 +186,6 @@ void send_request(char* method,char* version, char* host,char* path,int* port,st
 	struct sockaddr_in* serv = (sockaddr_in*)Malloc(sizeof(sockaddr_in));
 	int clientfd = Open_byHname_clientfd(host, *port,serv);
 	readResponse(clientfd,method,host,path,version, retBmsg); //Opens the read and write channels for the client/server connection
-	/*Rio_readinitb(&rio, clientfd);
-	
-	char requestMsg[MAXLINE];
-	std::stringstream ss;
-	//ss << ':' << *port;
-	//char* tmp = &host[strlen(host)];
-	//strcpy(tmp,strdup(ss.str().c_str()));
-	//host[strlen(host)] = '\0';
-	printf("Host is: %s\n",host);
-	sprintf(requestMsg,"%s %s %s\nHost: %s\n\n",method,path,version,host);
-	std::cout << "Request looks like:\n" << requestMsg;
-	Rio_writen(clientfd, requestMsg, strlen(requestMsg));
-	//Rio_readlineb(&rio, response, MAXLINE);
-	bool found = false;
-	std::size_t rHeadEnd;
-	ss.str("");
-	while((Rio_readn(clientfd,response,200))){
-		ss << response;
-		bzero(response,MAXLINE);
-		if (!found){
-			rHeadEnd = ss.str().find("<!DOC");
-			if (rHeadEnd != std::string::npos){
-				//printf("Error: no match after 200 char\n");
-				//exit(0);
-				found = true;
-			}
-			if (!found && ((rHeadEnd = ss.str().find("<html>")) != std::string::npos)){
-				found = true;
-			}
-			if (!found && ((rHeadEnd = ss.str().find("<HTML>")) != std::string::npos)){
-				found = true;
-			}
-		}
-		//printf("Saw a Head @ %d\n",rHeadEnd);
-	}
-	std::string outStr = ss.str();
-	std::size_t rEnd = outStr.find("</html>");
-	if (rEnd == std::string::npos) {
-		rEnd = outStr.find("</HTML>");
-		if (rEnd == std::string::npos){
-			std::cerr << "No matching end case found\n";
-			exit(0);
-		}
-	}
-	//std::cout << "The rHead is: " << rHeadEnd << "The rEnd: " << rEnd << std::endl;
-	if (rHeadEnd != std::string::npos) {
-		//*retHmsg = outStr.substr(0,rHeadEnd+2);
-		std::cout << "The rHead is: " << rHeadEnd << "The rEnd: " << rEnd << std::endl;
-		*retBmsg = outStr.substr(rHeadEnd,rEnd-rHeadEnd+8);//Add 8 to get the </html>\n characters
-	}else{
-		std::cerr << "Could not determine matching cases\n";
-		exit(0);
-	}
-	std::cout << *retBmsg;*/
-	/*
-	while (strcmp(response,"\r\n")) {
-		Rio_readlineb(&rio, response, MAXLINE);
-		ss << response;
-	}
-	*retHmsg = ss.str();
-	ss.str("");
-	std::string aStr;
-	Rio_readlineb(&rio,retBody,MAXLINE);
-	ss << retBody;
-	aStr = retBody;
-	std::size_t found;
-	 */
-	
-	//Special while logic needed to be implemented due to the inconsistant way
-	//html files end.
-	/*while ((found=aStr.find("</html>")) == std::string::npos) {
-		aStr = "";
-		printf("Inside retBody: %s\n",retBody);
-		Rio_readlineb(&rio, retBody, MAXLINE);
-		ss << retBody;
-		aStr = retBody;
-		ToLower(aStr);
-	}*/
-	//*retBmsg = ss.str();
-	//printf("Information Received:\n");
-	//printf(response);
-	//printf("Body Recieved:\n");
-	//printf(ss.str().c_str());
-	//printf(retBmsg->c_str());
-	
-	//printf("\tHost: %s\n",host);
-	//printf("\tPath: %s\n",path);
-	//printf("\tPort: %d\n",*port);
-	//Close(clientfd); /* Close the connection like good little children */
 	cacheNewHost(host,path,retHmsg,retBmsg,serv);
 	
 }
@@ -267,18 +195,12 @@ void readResponse(int clientfd,char* method,char* host,char*path,char*version,st
 	char response[MAXLINE];
 	rio_t rio;
 	Rio_readinitb(&rio, clientfd);
-	/* Build request */
 	char requestMsg[MAXLINE];
 	std::stringstream ss;
-	//ss << ':' << *port;
-	//char* tmp = &host[strlen(host)];
-	//strcpy(tmp,strdup(ss.str().c_str()));
-	//host[strlen(host)] = '\0';
 	printf("Host is: %s\n",host);
 	sprintf(requestMsg,"%s %s %s\nHost: %s\n\n",method,path,version,host);
 	std::cout << "Request looks like:\n" << requestMsg;
 	Rio_writen(clientfd, requestMsg, strlen(requestMsg));
-	//Rio_readlineb(&rio, response, MAXLINE);
 	bool found = false;
 	std::size_t rHeadEnd;
 	ss.str("");
@@ -291,10 +213,11 @@ void readResponse(int clientfd,char* method,char* host,char*path,char*version,st
 				//then the end of the response header yet, then
 				//something's very wrong.  Get out of loop, and throw error
 				//an infinite loop;
-				clienterror(fd, method, "400", "Unknown Error",
+				clienterror(clientfd, method, "400", "Unknown Error",
 							"Basic-Proxy encountered an unknown error when processing request");
 				Close(clientfd);
 				std::cerr << "Breaking out of while loop.  Possible infinite loop\n";
+				logEvent->ecache = true;
 				return;
 			}
 			rHeadEnd = ss.str().find("<!DOC");
@@ -313,6 +236,7 @@ void readResponse(int clientfd,char* method,char* host,char*path,char*version,st
 		//printf("Saw a Head @ %d\n",rHeadEnd);
 	}
 	std::string outStr = ss.str();
+	logEvent->bSize = outStr.length(); //Total number of bytes received
 	std::size_t rEnd = outStr.find("</html>");
 	if (rEnd == std::string::npos) {
 		rEnd = outStr.find("</HTML>");
@@ -338,6 +262,157 @@ void ToLower(std::string& s){
 	for (int i = 0; i<s.length(); i++) {
 		s[i] = tolower(s[i]);
 	}
+}
+/*
+ * parse_uri - URI parser
+ *
+ * Given a URI from an HTTP proxy GET request (i.e., a URL), extract
+ * the host name, path name, and port.  The memory for hostname and
+ * pathname must already be allocated and should be at least MAXLINE
+ * bytes. Return -1 if there are any problems.
+ */
+int parse_uri(char *uri, char *hostname, char *pathname, int *port)
+{
+    char *hostbegin;
+    char *hostend;
+    char *pathbegin;
+    int len;
+	
+    if (strncasecmp(uri, "http://", 7) != 0) {
+        hostname[0] = '\0';
+        return -1;
+    }
+	
+    /* Extract the host name */
+	
+    hostbegin = uri + 7;
+    hostend = strpbrk(hostbegin, " :/\r\n\0");
+    len = hostend - hostbegin;
+    strncpy(hostname, hostbegin, len);
+    hostname[len] = '\0';
+    
+    /* Extract the port number */
+	
+    *port = 80; /* default */
+	
+    if (*hostend == ':')
+        *port = atoi(hostend + 1);
+    
+    /* Extract the path */
+	
+    pathbegin = strchr(hostbegin, '/');
+    if (pathbegin == NULL) {
+        pathname[0] = '\0';
+    }
+    else {
+        //pathbegin++;
+        strcpy(pathname, pathbegin);
+    }
+	
+    return 0;
+}
+
+/*
+ * format_log_entry - Create a formatted log entry in logstring.
+ *
+ * The inputs are the socket address of the requesting client
+ * (sockaddr), the URI from the request (uri), and the size in bytes
+ * of the response from the server (size).
+ */
+void format_log_entry(char *logstring,struct sockaddr_in* clientaddr, char *uri, int size)
+{
+    time_t now;
+    char time_str[MAXLINE];
+    unsigned long host;
+    unsigned char a, b, c, d;
+	
+    /* Get a formatted time string */
+    now = time(NULL);
+    strftime(time_str, MAXLINE, "%a %d %b %Y %H:%M:%S %Z", localtime(&now));
+	
+    /*
+     * Convert the IP address in network byte order to dotted decimal
+     * form. Note that we could have used inet_ntoa, but chose not to
+     * because inet_ntoa is a Class 3 thread unsafe function that
+     * returns a pointer to a static variable (Ch 13, CS:APP).
+     */
+    host = ntohl(clientaddr->sin_addr.s_addr);
+    a = host >> 24;
+    b = (host >> 16) & 0xff;
+    c = (host >> 8) & 0xff;
+    d = host & 0xff;
+	
+	
+    /* Return the formatted log entry string */
+    sprintf(logstring, "%s: %d.%d.%d.%d %s %i", time_str, a, b, c, d, uri, size);
+}
+
+/*
+ * clienterror - returns an error message to the client
+ */
+/* $begin clienterror */
+void clienterror(int fd, char *cause, char *errnum,
+				 char *shortmsg, char *longmsg){
+    char buf[MAXLINE], body[MAXBUF];
+	
+    /* Build the HTTP response body */
+    sprintf(body, "<html><title>Basic Error</title>");
+    sprintf(body, "%s<body bgcolor=""ffffff"">\r\n", body);
+    sprintf(body, "%s%s: %s\r\n", body, errnum, shortmsg);
+    sprintf(body, "%s<p>%s: %s\r\n", body, longmsg, cause);
+    sprintf(body, "%s<hr><em>The Basic Proxy server</em>\r\n", body);
+	
+    /* Print the HTTP response */
+    sprintf(buf, "HTTP/1.0 %s %s\r\n", errnum, shortmsg);
+    Rio_writen(fd, buf, strlen(buf));
+    sprintf(buf, "Content-type: text/html\r\n");
+    Rio_writen(fd, buf, strlen(buf));
+    sprintf(buf, "Content-length: %d\r\n\r\n", (int)strlen(body));
+    Rio_writen(fd, buf, strlen(buf));
+    Rio_writen(fd, body, strlen(body));
+}
+/* $end clienterror */
+
+/*logActivity generates the logfile strings and writes them to the proxy.log file
+ after doing some checks: is the page previously cached, and was anything actually
+ returned from the server. */
+void logActivity(char* uri, int filesize,struct sockaddr_in* sock, bool pageE, bool pageC, bool nameC) {
+    
+    FILE * logFile;
+    char logLine[MAXLINE];
+    //struct stat filebuf;
+    //int filestate;
+    //int filesize;
+    char page[20] = "(PAGE CACHED)\0";
+    char host[25] = "(HOSTNAME CACHED)\0";
+    char nothing[15] = "(NOTFOUND)\0";
+	
+    
+    //char * fcstr = new char[filename.length() + 1];
+    //std::strcpy(fcstr, filename.c_str());
+    
+    //filestate = stat(fcstr, &filebuf);
+    //filesize = (intmax_t)filebuf.st_size;
+    format_log_entry(logLine,sock, uri,filesize);
+    
+    
+    logFile = Fopen("proxy.log", "a");
+    Fputs(logLine, logFile);
+    if (pageE) {
+        Fputs(nothing, logFile);
+    }
+    else {
+        if(pageC == true) {
+            Fputs(page, logFile);
+        }
+        if (nameC == true) {
+            Fputs(host, logFile);
+        }
+    }
+    
+    Fputs( "\n", logFile);
+    
+    Fclose(logFile);
 }
 
 /* This function handles returning the retrieved information to the user */
@@ -379,6 +454,8 @@ int searchCache(char* host,char* path,std::string* retHmsg,std::string* retBmsg)
 		}
 	}
 	if (!matched) {
+		logEvent->hcache = true;
+		logEvent->pcache = true;
 		return 0; //host is not in cache
 	}
 	for (int i = 0; i < h.pathnames.size(); i++) {
@@ -386,6 +463,7 @@ int searchCache(char* host,char* path,std::string* retHmsg,std::string* retBmsg)
 			h_name = h.pathnames[i]->F_headName;
 			p_name = h.pathnames[i]->F_bodyName;
 			getCache(h_name,p_name,retHmsg,retBmsg);
+			//Host and page are in cache already
 			return 1; //Skip DNS lookup return response
 		}
 	}
@@ -394,9 +472,11 @@ int searchCache(char* host,char* path,std::string* retHmsg,std::string* retBmsg)
 											//Recycling the same header the host sent.
 	if (retBmsg == NULL) {
 		//Error occurred
+		logEvent->ecache = true;
 		return -1;
 	}
 	cacheNewPath(h,path,retHmsg,retBmsg);
+	logEvent->pcache = true;
 	return 1; //Skip DNS lookup return response
 }
 
@@ -410,12 +490,12 @@ void loadPathContent(struct hostCache& hc,char* path,std::string* retBmsg){
 }
 
 void getCache(std::string headerFile,std::string bodyFile,std::string* retHmsg,std::string* retBmsg){
-	std::ifstream h_tmp(headerFile.c_str());
+	std::ifstream h_tmp(bodyFile.c_str());
 	std::string str((std::istreambuf_iterator<char>(h_tmp)),
 					std::istreambuf_iterator<char>());
 	std::cout << "Contents of response:\n" << str;
 	std::cout << "Debugging early terminate\n";
-	exit(0); //For debugging
+	//exit(0); //For debugging
 }
 
 void cacheNewHost(char* host,char* path,std::string* retHmsg,std::string* retBmsg,struct sockaddr_in* serv){
@@ -520,155 +600,4 @@ int open_byAddr_clientfd(struct sockaddr_in* serveraddr){
 }
 
 
-/*
- * parse_uri - URI parser
- * 
- * Given a URI from an HTTP proxy GET request (i.e., a URL), extract
- * the host name, path name, and port.  The memory for hostname and
- * pathname must already be allocated and should be at least MAXLINE
- * bytes. Return -1 if there are any problems.
- */
-int parse_uri(char *uri, char *hostname, char *pathname, int *port)
-{
-    char *hostbegin;
-    char *hostend;
-    char *pathbegin;
-    int len;
-
-    if (strncasecmp(uri, "http://", 7) != 0) {
-        hostname[0] = '\0';
-        return -1;
-    }
-       
-    /* Extract the host name */
-
-    hostbegin = uri + 7;
-    hostend = strpbrk(hostbegin, " :/\r\n\0");
-    len = hostend - hostbegin;
-    strncpy(hostname, hostbegin, len);
-    hostname[len] = '\0';
-    
-    /* Extract the port number */
-
-    *port = 80; /* default */
-
-    if (*hostend == ':')   
-        *port = atoi(hostend + 1);
-    
-    /* Extract the path */
-
-    pathbegin = strchr(hostbegin, '/');
-    if (pathbegin == NULL) {
-        pathname[0] = '\0';
-    }
-    else {
-        //pathbegin++;
-        strcpy(pathname, pathbegin);
-    }
-
-    return 0;
-}
-
-/*
- * format_log_entry - Create a formatted log entry in logstring. 
- * 
- * The inputs are the socket address of the requesting client
- * (sockaddr), the URI from the request (uri), and the size in bytes
- * of the response from the server (size).
- */
-void format_log_entry(char *logstring,struct sockaddr_in clientaddr, char *uri, int size)
-{
-    time_t now;
-    char time_str[MAXLINE];
-    unsigned long host;
-    unsigned char a, b, c, d;
-
-    /* Get a formatted time string */
-    now = time(NULL);
-    strftime(time_str, MAXLINE, "%a %d %b %Y %H:%M:%S %Z", localtime(&now));
-
-    /* 
-     * Convert the IP address in network byte order to dotted decimal
-     * form. Note that we could have used inet_ntoa, but chose not to
-     * because inet_ntoa is a Class 3 thread unsafe function that
-     * returns a pointer to a static variable (Ch 13, CS:APP).
-     */
-    host = ntohl(clientaddr.sin_addr.s_addr);
-    a = host >> 24;
-    b = (host >> 16) & 0xff;
-    c = (host >> 8) & 0xff;
-    d = host & 0xff;
-
-
-    /* Return the formatted log entry string */
-    sprintf(logstring, "%s: %d.%d.%d.%d %s %i", time_str, a, b, c, d, uri, size);
-}
-
-/*
- * clienterror - returns an error message to the client
- */
-/* $begin clienterror */
-void clienterror(int fd, char *cause, char *errnum,
-				 char *shortmsg, char *longmsg){
-    char buf[MAXLINE], body[MAXBUF];
-	
-    /* Build the HTTP response body */
-    sprintf(body, "<html><title>Basic Error</title>");
-    sprintf(body, "%s<body bgcolor=""ffffff"">\r\n", body);
-    sprintf(body, "%s%s: %s\r\n", body, errnum, shortmsg);
-    sprintf(body, "%s<p>%s: %s\r\n", body, longmsg, cause);
-    sprintf(body, "%s<hr><em>The Basic Proxy server</em>\r\n", body);
-	
-    /* Print the HTTP response */
-    sprintf(buf, "HTTP/1.0 %s %s\r\n", errnum, shortmsg);
-    Rio_writen(fd, buf, strlen(buf));
-    sprintf(buf, "Content-type: text/html\r\n");
-    Rio_writen(fd, buf, strlen(buf));
-    sprintf(buf, "Content-length: %d\r\n\r\n", (int)strlen(body));
-    Rio_writen(fd, buf, strlen(buf));
-    Rio_writen(fd, body, strlen(body));
-}
-/* $end clienterror */
-
-/*logActivity generates the logfile strings and writes them to the proxy.log file
- after doing some checks: is the page previously cached, and was anything actually
- returned from the server. */
-void logActivity(char* uri, std::string filename, bool pageC, bool nameC) {
-    
-    FILE * logFile;
-    char logLine[MAXLINE];
-    struct stat filebuf;
-    int filestate;
-    int filesize;
-    char page[20] = "(PAGE CACHED)\0";
-    char host[25] = "(HOSTNAME CACHED)\0";
-    char nothing[15] = "(NOTFOUND)\0";
-
-    
-    char * fcstr = new char[filename.length() + 1];
-    std::strcpy(fcstr, filename.c_str());
-    
-    filestate = stat(fcstr, &filebuf);
-    filesize = (intmax_t)filebuf.st_size;
-    format_log_entry(logLine, uri,filesize);
-    
-    
-    logFile = Fopen("proxy.log", "a");
-    Fputs(logLine, logFile);
-    if (filesize < 1) {
-        Fputs(nothing, logFile);
-    }
-    else {
-        if(pageC == true) {
-            Fputs(page, logFile);
-        }
-        if (nameC == true) {
-            Fputs(host, logFile);
-        }
-    }
-    
-    Fputs( "\n", logFile);
-    
-    Fclose(logFile);
-}
 
