@@ -36,6 +36,7 @@ extern "C" {
 #include <streambuf>//For reading file contents into a string
 #include <string>	//For strings
 #include <vector>	//For vectors
+#include <locale>
 
 /*
  * Function prototypes
@@ -57,6 +58,10 @@ void getCache(std::string headerFile,std::string bodyFile,std::string* retHmsg,s
 void cacheNewHost(char* host,char* path,std::string* retHmsg,std::string* retBmsg,struct sockaddr_in* serv);
 void cacheNewPath(struct hostCache& hc,char* path,std::string* retHmsg,std::string* retBmsg);
 std::string writeCacheFile(std::string* buf);
+void writeResponse(int connfd,int filesize);
+void ToLower(std::string&); //Possibly no longer needed
+void readResponse(int clientfd,char* method,char* host,char*path,char*version,std::string* retBmsg);
+void loadPathContent(struct hostCache& hc,char* path,std::string* retBmsg);
 /* End of function prototypes */
 
 /* Structure definitions */
@@ -135,13 +140,12 @@ void proxyIt(int fd)
 	parse_uri(uri,hostname,pathname,&port);
 	
 	send_request(method,version,hostname,pathname,&port,retMsg,retBody);
-	std::cout << "Response:\n" << *retMsg << "Body:\n" << *retBody;
-	write_Result(retMsg,retBody,fd);
-    /* Parse URI from GET request */
-    /*
-	clienterror(fd, strdup(filename.c_str()), "404", "Not found",
-					"Basic-Proxy couldn't find this file");
-	*/
+	//std::cout << "Response:\n" << *retMsg << "Body:\n" << *retBody;
+	//Send the result back to the client
+	if (retBody != NULL) {
+		write_Result(retMsg,retBody,fd);
+	}
+	
 }
 /* $end proxyIt */
 
@@ -152,23 +156,116 @@ void proxyIt(int fd)
  */
 void send_request(char* method,char* version, char* host,char* path,int* port,std::string* retHmsg,std::string* retBmsg)
 {
-	char response[MAXLINE], retBody[MAXLINE];
-	rio_t rio;
-	/*
-	printf("Information In Use:\n");
-	printf("\tMethod: %s\n",method);
-	printf("\tVersion: %s\n",version);
-	printf("\tHost: %s\n",host);
-	printf("\tPath: %s\n",path);
-	printf("\tPort: %d\n",*port);
-	 */
-	/*	DEBUGGING!!
-	 if (searchCache(host,path,retHmsg,retBmsg)) {
+	 if (int ret = searchCache(host,path,retHmsg,retBmsg)) {
+		 if (ret == 1) {
+			 //Handle request from cache
+			 return;
+		 }else if (ret == 0){
+			 //Let things proceed;
+		 }
+		 //error case!
 		return; //We don't need to connect
 	}
-	 */
 	struct sockaddr_in* serv = (sockaddr_in*)Malloc(sizeof(sockaddr_in));
 	int clientfd = Open_byHname_clientfd(host, *port,serv);
+	readResponse(clientfd,method,host,path,version, retBmsg); //Opens the read and write channels for the client/server connection
+	/*Rio_readinitb(&rio, clientfd);
+	
+	char requestMsg[MAXLINE];
+	std::stringstream ss;
+	//ss << ':' << *port;
+	//char* tmp = &host[strlen(host)];
+	//strcpy(tmp,strdup(ss.str().c_str()));
+	//host[strlen(host)] = '\0';
+	printf("Host is: %s\n",host);
+	sprintf(requestMsg,"%s %s %s\nHost: %s\n\n",method,path,version,host);
+	std::cout << "Request looks like:\n" << requestMsg;
+	Rio_writen(clientfd, requestMsg, strlen(requestMsg));
+	//Rio_readlineb(&rio, response, MAXLINE);
+	bool found = false;
+	std::size_t rHeadEnd;
+	ss.str("");
+	while((Rio_readn(clientfd,response,200))){
+		ss << response;
+		bzero(response,MAXLINE);
+		if (!found){
+			rHeadEnd = ss.str().find("<!DOC");
+			if (rHeadEnd != std::string::npos){
+				//printf("Error: no match after 200 char\n");
+				//exit(0);
+				found = true;
+			}
+			if (!found && ((rHeadEnd = ss.str().find("<html>")) != std::string::npos)){
+				found = true;
+			}
+			if (!found && ((rHeadEnd = ss.str().find("<HTML>")) != std::string::npos)){
+				found = true;
+			}
+		}
+		//printf("Saw a Head @ %d\n",rHeadEnd);
+	}
+	std::string outStr = ss.str();
+	std::size_t rEnd = outStr.find("</html>");
+	if (rEnd == std::string::npos) {
+		rEnd = outStr.find("</HTML>");
+		if (rEnd == std::string::npos){
+			std::cerr << "No matching end case found\n";
+			exit(0);
+		}
+	}
+	//std::cout << "The rHead is: " << rHeadEnd << "The rEnd: " << rEnd << std::endl;
+	if (rHeadEnd != std::string::npos) {
+		//*retHmsg = outStr.substr(0,rHeadEnd+2);
+		std::cout << "The rHead is: " << rHeadEnd << "The rEnd: " << rEnd << std::endl;
+		*retBmsg = outStr.substr(rHeadEnd,rEnd-rHeadEnd+8);//Add 8 to get the </html>\n characters
+	}else{
+		std::cerr << "Could not determine matching cases\n";
+		exit(0);
+	}
+	std::cout << *retBmsg;*/
+	/*
+	while (strcmp(response,"\r\n")) {
+		Rio_readlineb(&rio, response, MAXLINE);
+		ss << response;
+	}
+	*retHmsg = ss.str();
+	ss.str("");
+	std::string aStr;
+	Rio_readlineb(&rio,retBody,MAXLINE);
+	ss << retBody;
+	aStr = retBody;
+	std::size_t found;
+	 */
+	
+	//Special while logic needed to be implemented due to the inconsistant way
+	//html files end.
+	/*while ((found=aStr.find("</html>")) == std::string::npos) {
+		aStr = "";
+		printf("Inside retBody: %s\n",retBody);
+		Rio_readlineb(&rio, retBody, MAXLINE);
+		ss << retBody;
+		aStr = retBody;
+		ToLower(aStr);
+	}*/
+	//*retBmsg = ss.str();
+	//printf("Information Received:\n");
+	//printf(response);
+	//printf("Body Recieved:\n");
+	//printf(ss.str().c_str());
+	//printf(retBmsg->c_str());
+	
+	//printf("\tHost: %s\n",host);
+	//printf("\tPath: %s\n",path);
+	//printf("\tPort: %d\n",*port);
+	//Close(clientfd); /* Close the connection like good little children */
+	cacheNewHost(host,path,retHmsg,retBmsg,serv);
+	
+}
+
+void readResponse(int clientfd,char* method,char* host,char*path,char*version,std::string* retBmsg){
+	
+	char response[MAXLINE];
+	rio_t rio;
 	Rio_readinitb(&rio, clientfd);
 	/* Build request */
 	char requestMsg[MAXLINE];
@@ -181,41 +278,92 @@ void send_request(char* method,char* version, char* host,char* path,int* port,st
 	sprintf(requestMsg,"%s %s %s\nHost: %s\n\n",method,path,version,host);
 	std::cout << "Request looks like:\n" << requestMsg;
 	Rio_writen(clientfd, requestMsg, strlen(requestMsg));
-	Rio_readlineb(&rio, response, MAXLINE);
-	ss << response;
-	while (strcmp(response,"\r\n")) {
-		Rio_readlineb(&rio, response, MAXLINE);
-		ss << response;
-	}
-	*retHmsg = ss.str();
+	//Rio_readlineb(&rio, response, MAXLINE);
+	bool found = false;
+	std::size_t rHeadEnd;
 	ss.str("");
-	Rio_readlineb(&rio,retBody,MAXLINE);
-	ss << retBody;
-	while (strcmp(retBody,"</html>\n")) {
-		Rio_readlineb(&rio, retBody, MAXLINE);
-		ss << retBody;
+	while((Rio_readn(clientfd,response,200))){
+		ss << response;
+		bzero(response,MAXLINE);
+		if (!found){
+			if (ss.str().length() > MAXLINE) {
+				//Then we're in the while loop and haven't seen
+				//then the end of the response header yet, then
+				//something's very wrong.  Get out of loop, and throw error
+				//an infinite loop;
+				clienterror(fd, method, "400", "Unknown Error",
+							"Basic-Proxy encountered an unknown error when processing request");
+				Close(clientfd);
+				std::cerr << "Breaking out of while loop.  Possible infinite loop\n";
+				return;
+			}
+			rHeadEnd = ss.str().find("<!DOC");
+			if (rHeadEnd != std::string::npos){
+				//printf("Error: no match after 200 char\n");
+				//exit(0);
+				found = true;
+			}
+			if (!found && ((rHeadEnd = ss.str().find("<html>")) != std::string::npos)){
+				found = true;
+			}
+			if (!found && ((rHeadEnd = ss.str().find("<HTML>")) != std::string::npos)){
+				found = true;
+			}
+		}
+		//printf("Saw a Head @ %d\n",rHeadEnd);
 	}
-	*retBmsg = ss.str();
-	printf("Information Received:\n");
-	//printf(response);
-	//printf("Body Recieved:\n");
-	//printf(ss.str().c_str());
-	printf(retBmsg->c_str());
-	
-	//printf("\tHost: %s\n",host);
-	//printf("\tPath: %s\n",path);
-	//printf("\tPort: %d\n",*port);
-	Close(clientfd); /* Close the connection like good little children */
-	cacheNewHost(host,path,retHmsg,retBmsg,serv);
-	
+	std::string outStr = ss.str();
+	std::size_t rEnd = outStr.find("</html>");
+	if (rEnd == std::string::npos) {
+		rEnd = outStr.find("</HTML>");
+		if (rEnd == std::string::npos){
+			std::cerr << "No matching end case found\n";
+			exit(0);
+		}
+	}
+	//std::cout << "The rHead is: " << rHeadEnd << "The rEnd: " << rEnd << std::endl;
+	if (rHeadEnd != std::string::npos) {
+		//*retHmsg = outStr.substr(0,rHeadEnd+2);
+		std::cout << "The rHead is: " << rHeadEnd << "The rEnd: " << rEnd << std::endl;
+		*retBmsg = outStr.substr(rHeadEnd,rEnd-rHeadEnd+8);//Add 8 to get the </html>\n characters
+	}else{
+		std::cerr << "Could not determine matching cases\n";
+		exit(0);
+	}
+	std::cout << *retBmsg;
+	Close(clientfd);
 }
+
+void ToLower(std::string& s){
+	for (int i = 0; i<s.length(); i++) {
+		s[i] = tolower(s[i]);
+	}
+}
+
 /* This function handles returning the retrieved information to the user */
 void write_Result(std::string* retHmsg,std::string* retBmsg,int connfd){
 	/* Lets not keep our fans waiting.  Let them know how things went */
-	Rio_writen(connfd,strdup(retHmsg->c_str()),retHmsg->length());
+	//Rio_writen(connfd,strdup(retHmsg->c_str()),retHmsg->length());
+	writeResponse(connfd,retBmsg->length());
 	/* Time to send the body too! */
 	Rio_writen(connfd,strdup(retBmsg->c_str()),retBmsg->length());
 	/* K thx bye */
+}
+
+void writeResponse(int connfd,int filesize){
+	/* Build the HTTP response body */
+	std::stringstream ss;
+	ss << filesize;
+	std::string retStr;
+	retStr = "HTTP/1.1 200 OK\n";
+	retStr += "MIME-Version: 1.0\n";
+	retStr += "Date: Mon, 8 Jan 2010 4:59:42 GMT\n";
+	retStr += "Server: Basic Proxy/1.1\n";
+	retStr += "Content-Type: text/html\n";
+	retStr = retStr + "Content-Length: " + ss.str() + "\n\n";
+	//std::cout << retStr;
+	Rio_writen(connfd,strdup(retStr.c_str()),retStr.length());
+	
 }
 
 int searchCache(char* host,char* path,std::string* retHmsg,std::string* retBmsg){
@@ -241,8 +389,24 @@ int searchCache(char* host,char* path,std::string* retHmsg,std::string* retBmsg)
 			return 1; //Skip DNS lookup return response
 		}
 	}
+	loadPathContent(h,path,retBmsg); //Note, header files are depricated.
+											//We generate new a new header instead of
+											//Recycling the same header the host sent.
+	if (retBmsg == NULL) {
+		//Error occurred
+		return -1;
+	}
 	cacheNewPath(h,path,retHmsg,retBmsg);
 	return 1; //Skip DNS lookup return response
+}
+
+void loadPathContent(struct hostCache& hc,char* path,std::string* retBmsg){
+	int connfd = Open_byAddr_clientfd(hc.SAddr_in);
+	readResponse(connfd,"GET",strdup(hc.hostname.c_str()),path,"HTTP/1.1",retBmsg);
+	if (retBmsg == NULL) {
+		//An error occurred
+		return;
+	}
 }
 
 void getCache(std::string headerFile,std::string bodyFile,std::string* retHmsg,std::string* retBmsg){
@@ -267,23 +431,27 @@ void cacheNewHost(char* host,char* path,std::string* retHmsg,std::string* retBms
 void cacheNewPath(struct hostCache& hc,char* path,std::string* retHmsg,std::string* retBmsg){
 	printf("In create new path\n");
 	struct hostPaths* newPath;
-	newPath = (hostPaths*)Malloc(sizeof(hostPaths));
+	newPath = new hostPaths;
 	newPath->pathname = path;
+	//newPath->F_headName = new std::string; //Create header cache
 	newPath->F_headName = writeCacheFile(retHmsg); //Create header cache
 	printf("Between\n");
+	//newPath->F_bodyName = new std::string; //Create header cache
 	newPath->F_bodyName = writeCacheFile(retBmsg); //Create body cache
 	hc.pathnames.push_back(newPath);
 	printf("Leaving new path\n");
 }
 /* The writes returned data to a file */
 std::string writeCacheFile(std::string* buf){
+	std::stringstream ss;
 	printf("In Write cache\n");
-	std::stringstream ss;  //Convert filename to string
-	ss << filenameCounter++; //Get the next filename and increment
+	//std::stringstream ss;  //Convert filename to string
+	ss << filenameCounter; //Get the next filename and increment
 	std::ofstream outF(ss.str().c_str());
 	outF << (*buf);	//Put the data into the file
 	outF.close();	//Lets be tidy
 	printf("End of Write cache\n");
+	//tmp;
 	return ss.str(); //Return the name of the file we just made
 }
 
@@ -326,15 +494,16 @@ int open_byHname_clientfd(char *hostname, int port,struct sockaddr_in* serveradd
 	/* Fill in the server's IP address and port */
 	if ((hp = gethostbyname(hostname)) == NULL)
 		return -2; /* check h_errno for cause of error */
-	bzero((char *) &(*serveraddr), sizeof(*serveraddr));
+	bzero((char *) serveraddr, sizeof(serveraddr));
 	serveraddr->sin_family = AF_INET;
 	bcopy((char *)hp->h_addr_list[0],
 		  (char *)&(serveraddr->sin_addr.s_addr), hp->h_length);
 	serveraddr->sin_port = htons(port);
 	
 	/* Establish a connection with the server */
-	if (connect(clientfd, (SA *) &(*serveraddr), sizeof(*serveraddr)) < 0)
+	if (connect(clientfd, (SA *)&(*serveraddr), sizeof(*serveraddr)) < 0){
 		return -1;
+	}
 	return clientfd;
 }
 
@@ -344,7 +513,7 @@ int open_byAddr_clientfd(struct sockaddr_in* serveraddr){
 	if ((clientfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		return -1;
 	}
-	if (connect(clientfd, (SA*)serveraddr, sizeof(*serveraddr)) < 0) {
+	if (connect(clientfd, (SA*)&(*serveraddr), sizeof(*serveraddr)) < 0) {
 		return -1;
 	}
 	return clientfd;
@@ -481,7 +650,7 @@ void logActivity(char* uri, std::string filename, bool pageC, bool nameC) {
     
     filestate = stat(fcstr, &filebuf);
     filesize = (intmax_t)filebuf.st_size;
-    //format_log_entry(logLine, uri,filesize);
+    format_log_entry(logLine, uri,filesize);
     
     
     logFile = Fopen("proxy.log", "a");
